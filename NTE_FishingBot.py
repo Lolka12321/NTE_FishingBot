@@ -10,8 +10,8 @@ if not is_admin():
     params = " ".join(f'"{a}"' for a in sys.argv)
     ret = ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, params, None, 1)
     if ret <= 32:
-        print("Не удалось получить права администратора.")
-        input("Нажмите Enter...")
+        print("Failed to obtain administrator privileges.")
+        input("Press Enter...")
     sys.exit(0)
 
 import time
@@ -34,17 +34,14 @@ from PySide6.QtCore import Qt, QTimer, QObject, QSize, QEvent
 from PySide6.QtGui import QFont, QIntValidator, QIcon, QPainter, QColor, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 
-
 def _get_screen_size():
     w = ctypes.windll.user32.GetSystemMetrics(0)
     h = ctypes.windll.user32.GetSystemMetrics(1)
     return w, h
 
-
 def _get_resolution_profile():
     w, h = _get_screen_size()
 
-    # Базовые пропорции, снятые с 1920×1080
     REL_LEFT    = 605  / 1920
     REL_TOP     = 65   / 1080
     REL_WIDTH   = 718  / 1920
@@ -61,7 +58,6 @@ def _get_resolution_profile():
         ),
         "click_pt": [int(w * REL_CLICK_X), int(h * REL_CLICK_Y)],
     }
-
 
 _KEYDOWN = 0x0000
 _KEYUP   = 0x0002
@@ -90,7 +86,6 @@ def _si_key(key: str, up: bool):
 
 def _key_down(key: str): _si_key(key, False)
 def _key_up(key: str):   _si_key(key, True)
-
 
 def _send_mouse_input(dx, dy, flags):
     class MOUSEINPUT(ctypes.Structure):
@@ -127,16 +122,14 @@ def _move_and_click(x: int, y: int):
     time.sleep(0.05)
     _send_mouse_input(nx, ny, MOUSEEVENTF_LEFTUP   | MOUSEEVENTF_ABSOLUTE)
 
-
 _profile = _get_resolution_profile()
 
-# Верхняя половина полосы: RGB(32,181,161) / #20b5a1 → HSV(86,210,181)
 CYAN_TOP_HSV_LOW  = np.array([ 78, 170, 141])
 CYAN_TOP_HSV_HIGH = np.array([ 94, 250, 221])
-# Нижняя половина полосы: RGB(54,230,191) / #36e6bf → HSV(83,195,230)
+
 CYAN_BOT_HSV_LOW  = np.array([ 75, 155, 190])
 CYAN_BOT_HSV_HIGH = np.array([ 91, 235, 255])
-# Для обратной совместимости (watchdog/state не используют напрямую)
+
 CYAN_HSV_LOW    = CYAN_TOP_HSV_LOW
 CYAN_HSV_HIGH   = CYAN_TOP_HSV_HIGH
 YELLOW_HSV_LOW  = np.array([15,  90, 160])
@@ -177,7 +170,6 @@ state = {
     "watchdog_elapsed": 0.0,
 }
 
-
 def _longest_run(arr: np.ndarray):
     if not arr.any():
         return 0, 0
@@ -189,14 +181,12 @@ def _longest_run(arr: np.ndarray):
     idx = np.argmax(lengths)
     return int(starts[idx]), int(lengths[idx])
 
-
 def find_bar_range(mask: np.ndarray, min_width: int = 12, min_height: int = 3):
     rows_filled = int(np.sum(np.any(mask, axis=1)))
     if rows_filled < min_height:
         return None
     total_w = mask.shape[1]
-    # Гасим крайние столбцы ДО подсчёта runs —
-    # именно они дают артефакт «слияния» с краем GDI-оверлея.
+
     EDGE_KILL = 8
     safe = mask.copy()
     safe[:, :EDGE_KILL]           = 0
@@ -207,7 +197,7 @@ def find_bar_range(mask: np.ndarray, min_width: int = 12, min_height: int = 3):
     best_start, best_len = _longest_run(cols)
     if best_len < min_width:
         return None
-    # Ограничиваем максимальную ширину: бар не может занять >85% кадра
+
     MAX_BAR_FRAC = 0.85
     if best_len > int(total_w * MAX_BAR_FRAC):
         return None
@@ -216,7 +206,6 @@ def find_bar_range(mask: np.ndarray, min_width: int = 12, min_height: int = 3):
     if right <= left:
         return None
     return left, right, (left + right) // 2
-
 
 def tap_key(key: str, duration: float = 0.05):
     _key_down(key)
@@ -227,7 +216,6 @@ def tap_key(key: str, duration: float = 0.05):
         time.sleep(0.005)
     _key_up(key)
 
-
 def _grab_without_overlay(cap: dict) -> np.ndarray:
     x, y, w, h = cap["left"], cap["top"], cap["width"], cap["height"]
     gdi32  = ctypes.windll.gdi32
@@ -235,7 +223,7 @@ def _grab_without_overlay(cap: dict) -> np.ndarray:
 
     hdc_screen = user32.GetDC(None)
     if not hdc_screen:
-        raise RuntimeError("GetDC(None) вернул NULL")
+        raise RuntimeError("GetDC(None) returned NULL")
     hdc_mem = None
     hbmp    = None
     try:
@@ -267,7 +255,6 @@ def _grab_without_overlay(cap: dict) -> np.ndarray:
         if hdc_mem: gdi32.DeleteDC(hdc_mem)
         user32.ReleaseDC(None, hdc_screen)
 
-
 def scan_frame(sct) -> tuple:
     cap = state["capture"]
     try:
@@ -279,7 +266,6 @@ def scan_frame(sct) -> tuple:
         img_bgr  = img_bgra[:, :, :3]
     img_hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
 
-    # Разделяем по горизонтали пополам: верх ищет #20b5a1, низ — #36e6bf
     img_h = img_hsv.shape[0]
     mid   = img_h // 2
     top_half = img_hsv[:mid, :]
@@ -357,7 +343,6 @@ def scan_frame(sct) -> tuple:
     state["bar_w"] = bar_cols
     return bar_range, stick_cx, bar_cols
 
-
 def wait_for_bar(sct, timeout: float = 30.0) -> bool:
     deadline = time.perf_counter() + timeout
     while state["running"] and time.perf_counter() < deadline:
@@ -366,7 +351,6 @@ def wait_for_bar(sct, timeout: float = 30.0) -> bool:
             return True
         time.sleep(0.05)
     return False
-
 
 _watchdog_running = False
 _watchdog_lock    = threading.Lock()
@@ -386,7 +370,7 @@ def watchdog_thread():
             state["watchdog_elapsed"] = elapsed
             if elapsed > WATCHDOG_TIMEOUT:
                 pt = state["click_pt"]
-                state["last_action"] = f"watchdog! клик→{pt[0]},{pt[1]}"
+                state["last_action"] = f"watchdog! click→{pt[0]},{pt[1]}"
                 state["watchdog_active"] = False
                 state["watchdog_fire"]   = True
                 _move_and_click(int(pt[0]), int(pt[1]))
@@ -395,7 +379,6 @@ def watchdog_thread():
     finally:
         with _watchdog_lock:
             _watchdog_running = False
-
 
 def tracking_loop():
     sct = mss.mss()
@@ -433,7 +416,7 @@ def tracking_loop():
             if not state["running"]: break
 
             tap_key("f")
-            state["last_action"] = "ждём полоску…"
+            state["last_action"] = "waiting for bar…"
             appeared = wait_for_bar(sct, timeout=30.0)
             if not state["running"]: break
             phase = TRACKING if appeared else IDLE
@@ -443,7 +426,7 @@ def tracking_loop():
             if not bar_visible:
                 phase = WAIT_REAPPEAR
                 _phase_deadline = time.perf_counter() + 3.0
-                state["last_action"] = "ждём 3с возврата полосы…"
+                state["last_action"] = "waiting 3s for bar to return…"
                 continue
             bar_left, bar_right, bar_cx = bar_range
             if stick_cx is None:
@@ -465,22 +448,22 @@ def tracking_loop():
         elif phase == WAIT_REAPPEAR:
             if bar_visible:
                 phase = TRACKING
-                state["last_action"] = "полоса вернулась"
+                state["last_action"] = "bar returned"
                 continue
             if time.perf_counter() >= _phase_deadline:
                 phase = WAIT_ESC
                 _phase_deadline = time.perf_counter() + 4.0
-                state["last_action"] = "ждём 4с перед Esc…"
+                state["last_action"] = "waiting 4s before Esc…"
             continue
 
         elif phase == WAIT_ESC:
-            state["last_action"] = "ждём 4с перед Esc…"
+            state["last_action"] = "waiting 4s before Esc…"
             while state["running"] and time.perf_counter() < _phase_deadline:
                 time.sleep(0.05)
             if not state["running"]: break
             tap_key("esc")
             if not state["running"]: break
-            state["last_action"] = "Esc → пауза 2с…"
+            state["last_action"] = "Esc → pause 2s…"
             deadline = time.perf_counter() + 2.0
             while state["running"] and time.perf_counter() < deadline:
                 time.sleep(0.05)
@@ -497,7 +480,6 @@ def tracking_loop():
     try: sct.close()
     except: pass
 
-
 def _set_htgame_mute(mute: bool):
     try:
         from pycaw.pycaw import AudioUtilities, ISimpleAudioVolume
@@ -509,10 +491,8 @@ def _set_htgame_mute(mute: bool):
     except Exception:
         pass
 
-
 def _emergency_restore_sound():
     _set_htgame_mute(False)
-
 
 atexit.register(_emergency_restore_sound)
 
@@ -530,7 +510,6 @@ def _ctrl_handler(ctrl_type):
 
 _ctrl_handler_cb = _CTRL_HANDLER_TYPE(_ctrl_handler)
 ctypes.windll.kernel32.SetConsoleCtrlHandler(_ctrl_handler_cb, True)
-
 
 class GDIOverlay:
     WNDPROCTYPE = ctypes.WINFUNCTYPE(
@@ -730,14 +709,12 @@ class GDIOverlay:
         if self.hwnd:
             self._u32().PostMessageW(self.hwnd, 0x0002, 0, 0)
 
-
 SVG_PLAY = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v14l11-7-11-7z"/></svg>"""
 SVG_STOP = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="1.5"/></svg>"""
 SVG_GEAR = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>"""
 SVG_CLOSE = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>"""
 SVG_TIMER_PLAY = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>"""
 SVG_TIMER_CANCEL = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>"""
-
 
 def _svg_icon(svg_bytes: bytes, size: int, color: str) -> QIcon:
     colored = svg_bytes.replace(b'stroke="currentColor"', f'stroke="{color}"'.encode())
@@ -749,7 +726,6 @@ def _svg_icon(svg_bytes: bytes, size: int, color: str) -> QIcon:
     renderer.render(p)
     p.end()
     return QIcon(pm)
-
 
 def _make_icon_button(svg_bytes, size_px, icon_sz,
                       c_normal, c_hover, c_active=None,
@@ -826,7 +802,6 @@ def _make_icon_button(svg_bytes, size_px, icon_sz,
     btn.setActive = _set_active
     return btn
 
-
 C_BG       = "#111111"
 C_CARD     = "#181818"
 C_BORDER   = "#2a2a2a"
@@ -836,7 +811,6 @@ C_HINT     = "#404040"
 C_ACCENT   = "#1a6ed8"
 C_ACCENT_H = "#2280f0"
 C_YELLOW   = "#f0c040"
-
 
 def _num_input(width=64, val=0):
     e = QLineEdit(str(val))
@@ -859,7 +833,6 @@ def _num_input(width=64, val=0):
     """)
     return e
 
-
 def _dim_lbl(text):
     l = QLabel(text)
     l.setFont(QFont("Consolas", 10))
@@ -868,13 +841,11 @@ def _dim_lbl(text):
     l.setAlignment(Qt.AlignVCenter | Qt.AlignRight)
     return l
 
-
 def _section_lbl(text):
     l = QLabel(text)
     l.setFont(QFont("Consolas", 9))
     l.setStyleSheet(f"color: {C_HINT}; background: transparent; letter-spacing: 1px;")
     return l
-
 
 def _vline():
     f = QFrame()
@@ -883,7 +854,6 @@ def _vline():
     f.setFixedHeight(28)
     f.setStyleSheet(f"background: {C_BORDER}; border: none;")
     return f
-
 
 class OpaquePanel(QWidget):
     def __init__(self, bg=C_CARD, border=C_BORDER, radius=12, parent=None):
@@ -900,7 +870,6 @@ class OpaquePanel(QWidget):
         r = self.rect().adjusted(1, 1, -1, -1)
         p.drawRoundedRect(r, self._radius, self._radius)
         p.end()
-
 
 class MainWindow(QWidget):
     def __init__(self):
@@ -1061,7 +1030,6 @@ class MainWindow(QWidget):
         self._refresh_display()
         self.settings_panel.tick()
 
-
 class _SettingsPanel(OpaquePanel):
     _shutdown_at = None
 
@@ -1081,7 +1049,7 @@ class _SettingsPanel(OpaquePanel):
         wd_hdr = QHBoxLayout()
         wd_hdr.setContentsMargins(0, 0, 0, 0)
         wd_hdr.setSpacing(0)
-        wd_hdr.addWidget(_section_lbl("watchdog  (60s без нажатий → клик)"))
+        wd_hdr.addWidget(_section_lbl("watchdog  (60s idle → click)"))
         wd_hdr.addStretch(1)
         self.lbl_wd = QLabel("WD: —")
         self.lbl_wd.setFont(QFont("Consolas", 10))
@@ -1232,7 +1200,7 @@ class _SettingsPanel(OpaquePanel):
         self.btn_ovl.clicked.connect(self._toggle_overlay_btn)
         ovl_row.addWidget(self.btn_ovl)
 
-        lbl_ovl = QLabel("Отключить оверлей")
+        lbl_ovl = QLabel("Disable overlay")
         lbl_ovl.setFont(QFont("Consolas", 11))
         lbl_ovl.setStyleSheet(f"color: {C_FG}; background: transparent;")
         ovl_row.addWidget(lbl_ovl)
@@ -1276,7 +1244,7 @@ class _SettingsPanel(OpaquePanel):
         self.btn_mute.clicked.connect(self._toggle_mute_btn)
         mute_row.addWidget(self.btn_mute)
 
-        lbl_mute = QLabel("Отключить звук")
+        lbl_mute = QLabel("Disable sound")
         lbl_mute.setFont(QFont("Consolas", 11))
         lbl_mute.setStyleSheet(f"color: {C_FG}; background: transparent;")
         mute_row.addWidget(lbl_mute)
@@ -1377,14 +1345,12 @@ class _SettingsPanel(OpaquePanel):
             self._shutdown_at = None
             QTimer.singleShot(1500, lambda: os.system("shutdown /s /t 0"))
 
-
 def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     win = MainWindow()
     win.show()
     sys.exit(app.exec())
-
 
 if __name__ == "__main__":
     main()
