@@ -1,0 +1,5 @@
+numpy
+mss
+opencv-python
+pywin32
+PySide6
