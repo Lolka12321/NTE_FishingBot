@@ -1,7 +1,7 @@
 # 🎣 NTE_FishingBot
 
 **Author:** Lolka12321  
-**License:** see [LICENSE](LICENSE) — personal use allowed, redistribution prohibited.
+[LICENSE](LICENSE) — personal use allowed, redistribution prohibited.
 
 ---
 
